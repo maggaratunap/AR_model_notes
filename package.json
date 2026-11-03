@@ -1,0 +1,21 @@
+{
+  "name": "ar-model-notes",
+  "version": "1.0.0",
+  "description": "Shared WebXR AR viewer: upload a GLB, view it together in real space, and pin colored sticky notes to it.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "three": "0.180.0",
+    "three-mesh-bvh": "^0.9.1",
+    "ws": "^8.18.0"
+  }
+}
