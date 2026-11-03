@@ -48,14 +48,16 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function drawNoteCard(canvas, note, { selected = false } = {}) {
+export function drawNoteCard(canvas, note, { selected = false, opaque = false } = {}) {
   const ctx = canvas.getContext('2d');
   const S = canvas.width;
   ctx.clearRect(0, 0, S, S);
-  const pad = 18;
+  // `opaque` fills the whole square (no transparent corners), used for the iOS AR export.
+  const pad = opaque ? 0 : 18;
+  if (opaque) { ctx.fillStyle = note.color; ctx.fillRect(0, 0, S, S); }
   // shadow
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+  if (!opaque) { ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6; }
   ctx.fillStyle = note.color;
   roundRect(ctx, pad, pad, S - pad * 2, S - pad * 2, [8, 8, 8, 48]);
   ctx.fill();

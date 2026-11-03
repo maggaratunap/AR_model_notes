@@ -731,25 +731,76 @@ function onXRSelect(c) {
 }
 
 async function setupXR() {
-  if (!navigator.xr) {
-    $('xr-support').textContent = IS_IOS
-      ? 'iPhone and iPad browsers do not support WebXR AR yet. You can still view the model and notes in 3D here, synced live.'
-      : 'This browser has no WebXR. Use Chrome on Android or Meta Quest Browser for AR. The 3D view still works here.';
-    return;
-  }
-  const [ar, vr] = await Promise.all([
+  const [ar, vr] = navigator.xr ? await Promise.all([
     navigator.xr.isSessionSupported('immersive-ar').catch(() => false),
     navigator.xr.isSessionSupported('immersive-vr').catch(() => false),
-  ]);
+  ]) : [false, false];
   S.xrModes = { ar, vr };
   const btn = $('xr-btn');
-  if (ar || vr) {
-    btn.hidden = false;
-    btn.textContent = ar ? 'Enter AR' : 'Enter VR';
-    btn.onclick = () => startXR(ar ? 'ar' : 'vr');
+  if (ar) {
+    btn.hidden = false; btn.textContent = 'Enter AR'; btn.onclick = () => startXR('ar');
+    $('xr-support').textContent = 'This device supports live shared AR.';
+  } else if (quickLookAvailable()) {
+    // iPhone / iPad: no WebXR, so hand a snapshot to Apple's AR Quick Look.
+    btn.hidden = false; btn.textContent = 'View in AR'; btn.onclick = viewInQuickLook;
+    $('xr-support').textContent = 'On iPhone/iPad, “View in AR” opens Apple’s AR viewer with the model and current notes. Add or edit notes in the 3D view; they sync live.';
+    import('./quicklook.js').then((m) => { QL.mod = m; }).catch(() => {});
+    setInterval(prepQuickLook, 2500);
+  } else if (vr) {
+    btn.hidden = false; btn.textContent = 'Enter VR'; btn.onclick = () => startXR('vr');
+    $('xr-support').textContent = 'This device supports VR (no passthrough AR).';
+  } else {
+    $('xr-support').textContent = 'This browser cannot start AR. Use Chrome on Android, Meta Quest Browser, or Safari on iPhone/iPad. The 3D view still works and stays in sync.';
   }
-  $('xr-support').textContent = ar ? 'This device supports AR.' : vr ? 'This device supports VR (no passthrough AR).'
-    : 'This device cannot start an AR session. The 3D view still works and stays in sync.';
+}
+
+// ---------------------------------------------------------------- iPhone / iPad AR (Quick Look)
+function quickLookAvailable() {
+  const a = document.createElement('a');
+  return !!(a.relList?.supports?.('ar'));
+}
+const QL = { sig: '', blob: null, building: null, mod: null };
+function quickLookSignature() {
+  if (!S.model) return '';
+  const notes = [...S.notes.values()].map((n) => [n.data.id, n.data.text, n.data.color, n.data.position.join(), n.data.normal.join()]);
+  return JSON.stringify([S.modelVersion, S.scaleMode, notes]);
+}
+function buildQuickLook() {
+  const sig = quickLookSignature();
+  if (QL.building?.sig === sig) return QL.building.promise;
+  const promise = import('./quicklook.js').then(({ buildUSDZ }) => buildUSDZ({
+    modelRoot: S.model.root,
+    contentOffset: content.position.clone(),
+    modelScale: S.modelScale,
+    notes: [...S.notes.values()].map((n) => n.data).filter((d) => d.text.trim()),
+    noteSize: noteWorldSize(),
+  })).then((blob) => {
+    if (quickLookSignature() === sig) { QL.sig = sig; QL.blob = blob; }
+    return blob;
+  }).finally(() => { if (QL.building?.sig === sig) QL.building = null; });
+  QL.building = { sig, promise };
+  return promise;
+}
+// Keep a fresh USDZ ready in the background so tapping "View in AR" opens instantly.
+function prepQuickLook() {
+  if (!S.model || S.editing || QL.building || document.hidden) return;
+  if (quickLookSignature() !== QL.sig) buildQuickLook().catch((e) => console.warn('AR prep failed', e));
+}
+async function viewInQuickLook() {
+  if (!S.model) return toast('Upload a model first', true);
+  if (S.editing) closeEditor();
+  // Open synchronously when a fresh file is ready, so Safari still treats it as the user's tap.
+  if (QL.mod && QL.blob && QL.sig === quickLookSignature()) return QL.mod.openInQuickLook(QL.blob);
+  const { openInQuickLook } = QL.mod || await import('./quicklook.js');
+  showLoading(0.5, 'Preparing AR…');
+  try {
+    openInQuickLook(await buildQuickLook());
+  } catch (e) {
+    console.error(e);
+    toast(`Could not prepare AR: ${e.message || e}`, true);
+  } finally {
+    showLoading(null);
+  }
 }
 
 async function startXR(mode) {
@@ -1092,4 +1143,4 @@ $('join-name').addEventListener('keydown', (e) => {
 setTimeout(() => (store.get('amn-name') && ROOM_RE.test(urlRoom) ? $('join-go') : $('join-name')).focus(), 50);
 
 // For automated checks.
-window.__amn = { S, scene, camera, raycaster, handleSelect };
+window.__amn = { S, scene, camera, raycaster, handleSelect, buildQuickLook };

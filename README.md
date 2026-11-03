@@ -10,7 +10,7 @@ Works on:
 | **Meta Quest 3 / 3S** (Meta Quest Browser) | Passthrough AR. Aim a controller or your hand at a surface and pull the trigger (or pinch) to place the model. A floating menu and a virtual keyboard handle notes. |
 | **Android phones and tablets** (Chrome) | Camera AR. Move the phone to find a surface, tap to place, then tap the model to pin notes. The normal on-screen keyboard is used for typing. |
 | **Desktop** (any modern browser) | 3D view with orbit controls. Click the model to pin notes. Drag-and-drop a `.glb` to upload. |
-| **iPhone / iPad** (Safari) | 3D view only, fully synced. Apple does not support WebXR AR in Safari yet. |
+| **iPhone / iPad** (Safari) | Live 3D view, fully synced. **View in AR** opens Apple's AR Quick Look with the model and all current notes placed on a real surface. Quick Look is a snapshot: tap View in AR again to pick up newer notes, and add or edit notes in the 3D view. (Apple's browsers don't support WebXR AR, so live shared AR isn't possible there.) |
 | Other headsets with WebXR (e.g. Pico) | AR if the browser supports `immersive-ar`, otherwise VR. |
 
 ## Features
@@ -21,6 +21,7 @@ Works on:
 - **Shared scale**: Tabletop (longest side 0.5 m), Large (2 m), or Real size 1:1. Changing it changes it for everyone.
 - **Presence**: each person appears as a small colored head with a name tag, positioned where they are looking from relative to the model.
 - **Notes list** (desktop): click a note to fly the camera to it.
+- **iPhone/iPad AR** via Apple Quick Look: the app builds a USDZ of the model and notes on the device, kept ready in the background so it opens instantly.
 - Rooms, models and notes are saved on the server and reload when you come back.
 
 ## Run it locally
@@ -86,5 +87,6 @@ public/styles.css
 public/js/app.js     Scene, sync, picking, WebXR session handling
 public/js/notes.js   Sticky note and avatar rendering
 public/js/xr-ui.js   In-headset menu and virtual keyboard
+public/js/quicklook.js  USDZ export for AR Quick Look on iPhone/iPad
 render.yaml          Render Blueprint
 ```
