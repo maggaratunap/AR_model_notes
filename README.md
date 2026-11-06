@@ -69,6 +69,17 @@ Remote participants (desktop, or AR in a different room) see the same model, not
 - Exporters that mark everything as metallic make models look dark. Set metallic to 0 in the exporter if possible.
 - glTF units are meters. If a model appears 1000 times too large in "Real size", it was exported in millimeters.
 
+## Troubleshooting AR on Android
+
+"Could not start AR" or "The specified session configuration is not supported" means the phone's browser
+reported AR support but the phone could not start a session. The app automatically retries with simpler settings,
+then shows a help panel with a **Try basic AR mode** button. If that also fails, check:
+
+1. The page is open in **Google Chrome** (not Samsung Internet, Firefox, or a link opened inside another app).
+2. **Google Play Services for AR** is installed and up to date (Play Store).
+3. The phone is on Google's [ARCore supported devices list](https://developers.google.com/ar/devices).
+   Phones that aren't on it can't run web AR, but the 3D view still works and stays synced.
+
 ## Controls
 
 **Desktop:** drag to orbit, scroll to zoom, right-drag to pan. `N` toggles Add note, `Esc` cancels.

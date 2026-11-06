@@ -205,3 +205,11 @@ body.in-xr .modal-wrap { background: transparent; align-items: start; padding-to
   #toolbar { gap: 8px; padding: 8px; }
   .swatch { width: 28px; height: 28px; }
 }
+
+/* ---------- AR help ---------- */
+.help { text-align: left; }
+.help p { text-align: left; }
+.help ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); font-size: 14px; }
+.help ol strong { color: var(--text); }
+.help a { color: var(--accent); }
+.help .tip { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,212,71,0.12); color: var(--text); font-size: 14px; }

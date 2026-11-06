@@ -289,7 +289,7 @@ function startMove(id) {
   closeEditor({ keepEmpty: true });
   S.moving = id;
   S.notes.get(id)?.setSelected(true);
-  setHint(S.xr && !S.xr.domOverlay ? 'Point at the model and pull the trigger to move the note' : 'Tap the model where the note should go  (Esc to cancel)');
+  setHint(S.xr && usesPointer() ? 'Point at the model and pull the trigger to move the note' : 'Tap the model where the note should go  (Esc to cancel)');
 }
 function cancelMove() {
   S.notes.get(S.moving)?.setSelected(false);
@@ -394,7 +394,7 @@ function setAddMode(on) {
   $('add-btn').setAttribute('aria-pressed', String(on));
   canvas.style.cursor = on ? 'crosshair' : '';
   if (on && S.moving) cancelMove();
-  if (on) setHint(S.xr && !S.xr.domOverlay ? 'Point at the model and pull the trigger to pin a note' : 'Tap the model to pin a note');
+  if (on) setHint(S.xr && usesPointer() ? 'Point at the model and pull the trigger to pin a note' : 'Tap the model to pin a note');
   else if (!S.moving && !(S.xr && !S.xr.placed)) setHint(null);
 }
 $('add-btn').onclick = () => {
@@ -803,17 +803,62 @@ async function viewInQuickLook() {
   }
 }
 
-async function startXR(mode) {
+// Session configurations from richest to most basic. Some Android phones report AR
+// support but reject anything beyond a plain session, so we step down on failure.
+function xrConfigs(mode) {
+  const overlay = { root: $('ui') };
+  if (mode === 'vr') return [{ optionalFeatures: ['local-floor', 'hand-tracking'] }, {}];
+  return [
+    { optionalFeatures: ['local-floor', 'hit-test', 'hand-tracking', 'dom-overlay'], domOverlay: overlay },
+    { optionalFeatures: ['hit-test', 'dom-overlay'], domOverlay: overlay },
+    { optionalFeatures: ['dom-overlay'], domOverlay: overlay },
+    {},
+  ];
+}
+
+// True on headsets (controller/hand rays), false on phones and tablets (screen taps).
+const usesPointer = () => DEVICE === 'headset' || controllers.some((c) => c.userData.source?.targetRayMode === 'tracked-pointer');
+
+function showXRHelp(mode, err) {
+  const name = err?.name || 'Error';
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return toast(`${mode.toUpperCase()} was blocked. Allow camera access for this site in the browser settings, then tap Enter AR again.`, true);
+  }
+  const tip = $('xrhelp-browser');
+  const browser = /SamsungBrowser/i.test(UA) ? 'Samsung Internet' : /Firefox/i.test(UA) ? 'Firefox'
+    : /; wv\)|FBAN|FBAV|Instagram|Line\/|GSA\//i.test(UA) ? 'an in-app browser' : null;
+  tip.hidden = !browser;
+  if (browser) tip.textContent = `You’re using ${browser}. Open this link in Google Chrome instead; it has the best AR support on Android.`;
+  $('xrhelp-basic').hidden = mode !== 'ar';
+  $('xrhelp-detail').textContent = `Details: ${name}${err?.message ? `: ${err.message}` : ''}`;
+  $('xrhelp-wrap').hidden = false;
+}
+$('xrhelp-close').onclick = () => { $('xrhelp-wrap').hidden = true; };
+$('xrhelp-wrap').addEventListener('pointerdown', (e) => { if (e.target === $('xrhelp-wrap')) $('xrhelp-wrap').hidden = true; });
+// A fresh tap gives the browser a new user gesture for the retry.
+$('xrhelp-basic').onclick = () => startXR('ar', { basic: true });
+
+async function startXR(mode, { basic = false } = {}) {
   if (!S.model) return toast('Upload a model first', true);
   if (S.editing) closeEditor();
-  const opts = { optionalFeatures: ['local-floor', 'hit-test', 'hand-tracking'] };
-  if (mode === 'ar') { opts.optionalFeatures.push('dom-overlay'); opts.domOverlay = { root: $('ui') }; }
-  let session;
-  try {
-    session = await navigator.xr.requestSession(mode === 'ar' ? 'immersive-ar' : 'immersive-vr', opts);
-  } catch (err) {
-    return toast(`Could not start ${mode.toUpperCase()}: ${err.message}`, true);
+  $('xrhelp-wrap').hidden = true;
+  const configs = xrConfigs(mode);
+  // Start from the last configuration that worked (or the basic ones if asked).
+  const start = basic ? Math.max(1, S.xrConfigIndex || 0) : S.xrConfigIndex || 0;
+  let session, firstErr;
+  for (let i = start; i < configs.length && !session; i++) {
+    try {
+      session = await navigator.xr.requestSession(mode === 'ar' ? 'immersive-ar' : 'immersive-vr', configs[i]);
+      S.xrConfigIndex = i;
+    } catch (err) {
+      console.warn(`XR config ${i} rejected:`, err.name, err.message);
+      if (err.name === 'NotSupportedError') { firstErr ||= err; continue; }
+      if (!firstErr) firstErr = err; // permission denied etc. on the first try: report that
+      else S.xrConfigIndex = i;      // automatic retry lost the tap gesture: resume here on the next tap
+      break;
+    }
   }
+  if (!session) return showXRHelp(mode, firstErr);
   const ef = session.enabledFeatures;
   const floor = ef ? ef.includes('local-floor') : DEVICE === 'headset';
   renderer.xr.setReferenceSpaceType(floor ? 'local-floor' : 'local');
@@ -823,7 +868,8 @@ async function startXR(mode) {
   } catch (err) {
     S.xr = null;
     session.end().catch(() => {});
-    return toast(`Could not start ${mode.toUpperCase()}: ${err.message}`, true);
+    S.xrConfigIndex = Math.min((S.xrConfigIndex || 0) + 1, xrConfigs(mode).length - 1);
+    return showXRHelp(mode, err);
   }
   document.body.classList.add('in-xr');
   setBackdrop(mode);
@@ -842,9 +888,9 @@ async function startXR(mode) {
   if (!S.xr.domOverlay) createXRPanels();
   if (mode === 'ar') {
     stage.visible = false;
-    setHint(DEVICE === 'headset' || !S.xr.domOverlay
+    setHint(usesPointer()
       ? 'Aim at a table or the floor and pull the trigger to place the model'
-      : 'Slowly move your phone to find a surface, then tap to place the model');
+      : 'Move your phone slowly to find a surface, then tap to place the model');
   } else {
     S.xr.placed = true;
     setHint(null);
@@ -920,7 +966,7 @@ function startReplace() {
   if (!S.xr) return;
   if (S.xr.mode === 'vr') { S.xr.needsVRPlace = true; return; }
   S.xr.placed = false;
-  setHint(S.xr.domOverlay ? 'Tap to place the model' : 'Aim at a surface and pull the trigger to place the model');
+  setHint(usesPointer() ? 'Aim at a surface and pull the trigger to place the model' : 'Tap to place the model');
 }
 $('rot-left').onclick = () => rotateStage(1);
 $('rot-right').onclick = () => rotateStage(-1);
@@ -941,7 +987,7 @@ function placeHere() {
   reticle.visible = false;
   stage.visible = true;
   setHint(null);
-  toast(S.xr.domOverlay ? 'Placed. Turn on “Add note” and tap the model.' : 'Placed. Use “Add note”, then aim and pull the trigger.');
+  toast(usesPointer() ? 'Placed. Use “Add note”, then aim and pull the trigger.' : 'Placed. Turn on “Add note” and tap the model.');
 }
 
 function updatePlacement(frame) {
@@ -1006,9 +1052,11 @@ function updateXRUI(dt) {
     cam.getWorldPosition(_camPos);
     cam.getWorldDirection(_fwd); _fwd.y = 0;
     if (_fwd.lengthSq() > 1e-6) {
-      _fwd.normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP, 0.6);
-      const desired = _camPos.clone().addScaledVector(_fwd, 0.55);
-      desired.y = _camPos.y - 0.3;
+      // Headsets: low and to the left. Phones in basic AR (no screen overlay): straight ahead, low, so it stays on screen.
+      const onPhone = DEVICE !== 'headset';
+      _fwd.normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP, onPhone ? 0 : 0.6);
+      const desired = _camPos.clone().addScaledVector(_fwd, onPhone ? 0.75 : 0.55);
+      desired.y = _camPos.y - (onPhone ? 0.2 : 0.3);
       if (!menu.placed || !menu.target || desired.distanceTo(menu.target) > 0.3) { menu.target = desired; }
       if (!menu.placed) { menu.mesh.position.copy(desired); menu.placed = true; }
       menu.mesh.position.lerp(menu.target, 1 - Math.exp(-dt * 5));

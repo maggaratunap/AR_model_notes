@@ -143,6 +143,21 @@
       </div>
     </div>
 
+    <!-- Shown when an AR session cannot start -->
+    <div id="xrhelp-wrap" class="modal-wrap" hidden>
+      <div class="share help xr-block">
+        <div class="editor-head"><strong>AR couldn’t start on this device</strong><button id="xrhelp-close" class="icon-btn" aria-label="Close">✕</button></div>
+        <p id="xrhelp-browser" class="tip" hidden></p>
+        <button id="xrhelp-basic" class="btn primary wide">Try basic AR mode</button>
+        <ol>
+          <li>Use <strong>Google Chrome</strong>, opened directly (not Samsung Internet, Firefox, or a link opened inside another app).</li>
+          <li>Install or update <a href="https://play.google.com/store/apps/details?id=com.google.ar.core" target="_blank" rel="noopener">Google Play Services for AR</a>, then reload this page.</li>
+          <li>Check that the phone is on Google’s <a href="https://developers.google.com/ar/devices" target="_blank" rel="noopener">list of AR-capable devices</a>. If it isn’t, AR isn’t available on that phone, but the 3D view still works and stays synced.</li>
+        </ol>
+        <p id="xrhelp-detail" class="muted small"></p>
+      </div>
+    </div>
+
     <div id="toasts" class="toasts"></div>
   </div>
 
