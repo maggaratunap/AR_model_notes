@@ -1162,6 +1162,7 @@ function start(room) {
   history.replaceState(null, '', `/?room=${room}`);
   document.title = `${room} · Model Notes AR`;
   $('room-code').textContent = room;
+  $('align-link').href = `/align?room=${room}`;
   $('join').hidden = true;
   $('topbar').hidden = false;
   $('toolbar').hidden = false;

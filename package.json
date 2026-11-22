@@ -6,13 +6,15 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "express": "^5.1.0",
+    "js-aruco2": "^2.0.0",
     "qrcode": "^1.5.4",
     "three": "0.180.0",
     "three-mesh-bvh": "^0.9.1",

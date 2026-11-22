@@ -100,6 +100,8 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 // Three.js and the BVH library are served from node_modules so the app has no CDN dependency.
 app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three'), { maxAge: '7d' }));
 app.use('/vendor/three-mesh-bvh', express.static(path.join(__dirname, 'node_modules/three-mesh-bvh/build'), { maxAge: '7d' }));
+// ArUco marker detector (runs in a worker on Android phones for site alignment).
+app.use('/vendor/aruco', express.static(path.join(__dirname, 'node_modules/js-aruco2/src'), { maxAge: '7d' }));
 app.use('/models', express.static(MODELS_DIR, {
   maxAge: '365d', immutable: true,
   setHeaders: (res) => res.setHeader('Content-Type', 'model/gltf-binary'),
@@ -142,7 +144,69 @@ app.post('/api/rooms/:room/model',
     res.json({ ok: true, model: publicModel(room.model) });
   });
 
+// ---------- site alignment (control points for /align) ----------
+function alignFile(id) { return path.join(ROOMS_DIR, `${id}.align.json`); }
+const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+const IMG_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+
+app.get('/api/rooms/:room/align', async (req, res) => {
+  const id = String(req.params.room).toUpperCase();
+  if (!ROOM_RE.test(id)) return res.status(400).json({ error: 'Bad room code' });
+  const room = getRoom(id);
+  let site = null;
+  try { site = JSON.parse(await fsp.readFile(alignFile(id), 'utf8')); } catch { /* none yet */ }
+  res.json({ model: publicModel(room.model), site });
+});
+
+app.put('/api/rooms/:room/align', express.json({ limit: '4mb' }), async (req, res) => {
+  const id = String(req.params.room).toUpperCase();
+  if (!ROOM_RE.test(id)) return res.status(400).json({ error: 'Bad room code' });
+  const b = req.body || {};
+  if (!Array.isArray(b.points) || b.points.length > 50) return res.status(400).json({ error: 'Bad points' });
+  const points = [];
+  for (const p of b.points) {
+    if (!p || !Array.isArray(p.p) || p.p.length !== 3 || !p.p.every(finite)) return res.status(400).json({ error: 'Bad point' });
+    points.push({
+      id: /^[A-Za-z0-9-]{1,40}$/.test(p.id) ? p.id : crypto.randomUUID().slice(0, 8),
+      name: cleanText(p.name).slice(0, 60),
+      p: p.p,
+      img: typeof p.img === 'string' && p.img.length < 300000 && IMG_RE.test(p.img) ? p.img : null,
+    });
+  }
+  // Printed markers learned on site: id 0-249 -> 4 corners in model coordinates.
+  const markers = {};
+  if (b.markers && typeof b.markers === 'object') {
+    for (const [k, mk] of Object.entries(b.markers).slice(0, 250)) {
+      const id = Number(k);
+      if (!Number.isInteger(id) || id < 0 || id > 249 || !mk || !Array.isArray(mk.c) || mk.c.length !== 4) continue;
+      if (!mk.c.every((c) => Array.isArray(c) && c.length === 3 && c.every(finite))) continue;
+      markers[id] = {
+        c: mk.c,
+        fit: finite(mk.fit) ? mk.fit : 0.05,
+        n: Number.isInteger(mk.n) ? mk.n : 0,
+        learned: finite(mk.learned) ? mk.learned : 0,
+        size: finite(mk.size) && mk.size >= 0.03 && mk.size <= 1 ? mk.size : 0.15,
+      };
+    }
+  }
+  const m = b.model && typeof b.model === 'object' ? b.model : {};
+  const site = {
+    format: 'model-notes-align', version: 1,
+    name: cleanText(b.name).slice(0, 120),
+    model: { name: cleanText(m.name).slice(0, 200), size: finite(m.size) ? m.size : 0, version: finite(m.version) ? m.version : null },
+    points,
+    markerSize: finite(b.markerSize) && b.markerSize >= 0.03 && b.markerSize <= 1 ? b.markerSize : 0.15,
+    markers,
+    updated: Date.now(),
+  };
+  const tmp = alignFile(id) + '.tmp';
+  await fsp.writeFile(tmp, JSON.stringify(site));
+  await fsp.rename(tmp, alignFile(id));
+  res.json({ ok: true });
+});
+
 app.use((err, req, res, next) => {
+  if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: 'Bad JSON' });
   if (err?.type === 'entity.too.large') return res.status(413).json({ error: `File is larger than ${MAX_UPLOAD_MB} MB.` });
   console.error(err);
   res.status(500).json({ error: 'Server error' });
