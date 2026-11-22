@@ -41,6 +41,7 @@ body:not(.in-xr) .xr-only { display: none !important; }
   transition: background .15s, border-color .15s, transform .08s;
 }
 .btn:hover { background: rgba(255,255,255,0.11); }
+a.btn { text-decoration: none; }
 .btn:active { transform: scale(0.97); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .btn.primary:hover { background: #ffdd6b; }

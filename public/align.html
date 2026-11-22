@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#14161a" />
+  <title>Site alignment · Model Notes AR</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2212%22 fill=%22none%22 stroke=%22%23ffd447%22 stroke-width=%224%22/%3E%3Cpath d=%22M16 2v28M2 16h28%22 stroke=%22%23ffd447%22 stroke-width=%222%22/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/align.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/",
+        "three-mesh-bvh": "/vendor/three-mesh-bvh/index.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="ui">
+    <header id="abar">
+      <a class="brand small-brand" href="/" id="back-link"><span class="brand-mark"></span>Model Notes <em>AR</em></a>
+      <span class="tag">Site alignment</span>
+      <span id="model-name" class="muted small"></span>
+      <div class="spacer"></div>
+      <label class="btn" title="Open a .glb file from this device">Open GLB
+        <input id="file-glb" type="file" accept=".glb,model/gltf-binary" hidden />
+      </label>
+      <label class="btn" title="Load control points from a .json file">Import points
+        <input id="file-site" type="file" accept=".json,application/json" hidden />
+      </label>
+      <button id="export-site" class="btn" title="Download control points as .json">Export points</button>
+    </header>
+
+    <aside id="side">
+      <div class="side-head">
+        <strong>Control points</strong>
+        <span id="pt-count" class="pill">0</span>
+      </div>
+      <p class="muted small">
+        Turn on <strong>Add point</strong> and click sharp, easy-to-find corners <strong>at floor level</strong>:
+        column base corners, wall corners, door jambs, floor drains. Pick 3 or 4 points spread far apart
+        (ideally 10 m+). Each point saves a photo of the view to help you find it on site.
+      </p>
+      <div class="row wrap">
+        <button id="add-pt" class="btn toggle" aria-pressed="false">Add point</button>
+        <label class="check"><input type="checkbox" id="snap" checked /> Snap to corners</label>
+      </div>
+      <ol id="pt-list"></ol>
+      <details id="mk-section" class="mk">
+        <summary><strong>Printed markers</strong> <span class="muted small">(Android, optional)</span></summary>
+        <p class="muted small">
+          Tape printed markers on columns or walls at chest height. After one good point alignment on an Android
+          phone, look at each marker for 2 seconds and the phone learns where it is. From then on anyone can just
+          point a phone at a marker to align.
+        </p>
+        <div class="row wrap">
+          <label class="check">Black square <input id="mk-size" type="number" min="30" max="1000" step="1" /> mm</label>
+          <a id="mk-print" class="btn" href="/align-markers.html" target="_blank" rel="noopener">Print markers</a>
+        </div>
+        <ul id="mk-list"></ul>
+      </details>
+      <div id="model-info" class="muted small"></div>
+    </aside>
+
+    <footer id="afoot">
+      <span id="xr-msg" class="muted small"></span>
+      <div class="spacer"></div>
+      <button id="enter-ar" class="btn primary" hidden>Align in AR</button>
+    </footer>
+
+    <div id="empty" class="empty">
+      <div class="drop">
+        <h2>Open your building model</h2>
+        <p>Use <strong>Open GLB</strong>, drop a <strong>.glb</strong> here, or open this page from a room
+          (<code>/align?room=CODE</code>) to use that room’s model.</p>
+      </div>
+    </div>
+
+    <div id="loading" class="loading" hidden>
+      <div class="bar"><i id="loading-bar"></i></div>
+      <span id="loading-text">Loading model…</span>
+    </div>
+
+    <!-- Phone / tablet AR overlay (also the WebXR DOM overlay root) -->
+    <section id="ar" hidden>
+      <div id="crosshair" aria-hidden="true"></div>
+      <div id="ar-card">
+        <div id="ar-title"></div>
+        <div class="ar-body">
+          <img id="ar-img" alt="Reference view of this point" hidden />
+          <div>
+            <div id="ar-text"></div>
+            <div id="ar-quality"></div>
+            <div id="ar-warning"></div>
+          </div>
+        </div>
+        <div id="ar-buttons"></div>
+      </div>
+    </section>
+
+    <div id="toasts" class="toasts"></div>
+  </div>
+
+  <script type="module" src="/js/align/app.js"></script>
+</body>
+</html>

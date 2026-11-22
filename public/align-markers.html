@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Print alignment markers · Model Notes AR</title>
+  <style>
+    @page { size: auto; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1b1d22; background: #eceae4; }
+    .controls { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 14px; align-items: end;
+      padding: 14px 18px; background: #14161a; color: #f2f1ee; }
+    .controls label { display: grid; gap: 4px; font-size: 12px; color: #a6a9b0; }
+    .controls input { width: 96px; padding: 7px 9px; border-radius: 8px; border: 1px solid #444; background: #0c0d10; color: #fff; font: inherit; }
+    .controls button { height: 38px; padding: 0 18px; border-radius: 10px; border: 0; background: #ffd447; color: #2a2100; font: inherit; font-weight: 650; cursor: pointer; }
+    .controls p { margin: 0; flex-basis: 100%; font-size: 13px; color: #c9cbd0; }
+    .controls .warn { color: #ffb36b; }
+    .sheet { width: 190mm; margin: 14px auto; padding: 0; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      display: grid; justify-items: center; gap: 4mm; page-break-after: always; break-after: page; }
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
+    .marker svg { display: block; shape-rendering: crispEdges; }
+    .label { text-align: center; font-size: 11pt; padding-bottom: 3mm; }
+    .label b { font-size: 16pt; }
+    .label small { display: block; color: #555; font-size: 9pt; }
+    @media print {
+      body { background: #fff; }
+      .controls { display: none; }
+      .sheet { margin: 0 auto; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>Black square (mm)<input id="size" type="number" min="30" max="150" step="1" /></label>
+    <label>First ID<input id="from" type="number" min="0" max="249" step="1" /></label>
+    <label>How many<input id="count" type="number" min="1" max="50" step="1" /></label>
+    <button id="print">Print</button>
+    <p>Print at <strong>100% / Actual size</strong> (not “Fit to page”), on matte paper. Then measure the black square
+      with a tape. If it isn't exactly the size above, enter the measured size on the alignment page before learning markers.
+      Use each ID once per building. Tape markers flat on columns or walls at chest height, where they won't be covered or moved.</p>
+    <p id="warn" class="warn" hidden></p>
+  </div>
+  <div id="sheets"></div>
+
+  <script src="/vendor/aruco/cv.js"></script>
+  <script src="/vendor/aruco/aruco.js"></script>
+  <script>
+    /* global AR */
+    var q = new URLSearchParams(location.search);
+    var $ = function (id) { return document.getElementById(id); };
+    var clamp = function (v, a, b, d) { v = Number(v); return Number.isFinite(v) ? Math.min(b, Math.max(a, Math.round(v))) : d; };
+    $('size').value = clamp(q.get('size'), 30, 150, 150);
+    $('from').value = clamp(q.get('from'), 0, 249, 0);
+    $('count').value = clamp(q.get('count'), 1, 50, 8);
+    var dict = new AR.Dictionary('ARUCO_MIP_36h12');
+
+    function markerSVG(id, mm) {
+      // 8×8 black square (border + 6×6 data cells) inside a 1-cell white quiet zone.
+      var code = dict.codeList[id], cell = mm / 8, total = cell * 10;
+      var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + total + 'mm" height="' + total + 'mm" viewBox="0 0 10 10">';
+      s += '<rect width="10" height="10" fill="#fff" stroke="#bbb" stroke-width="0.02" stroke-dasharray="0.15 0.15"/>';
+      s += '<rect x="1" y="1" width="8" height="8" fill="#000"/>';
+      for (var y = 0; y < 6; y++) for (var x = 0; x < 6; x++) {
+        if (code[y * 6 + x] === '1') s += '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="1" height="1" fill="#fff"/>';
+      }
+      return s + '</svg>';
+    }
+
+    function render() {
+      var mm = clamp($('size').value, 30, 150, 150), from = clamp($('from').value, 0, 249, 0), n = clamp($('count').value, 1, 50, 8);
+      n = Math.min(n, 250 - from);
+      $('warn').hidden = mm >= 100;
+      $('warn').textContent = 'Markers smaller than 100 mm have to be viewed from closer than 1 m.';
+      var out = '';
+      for (var id = from; id < from + n; id++) {
+        out += '<section class="sheet"><div class="marker">' + markerSVG(id, mm) + '</div>' +
+          '<div class="label"><b>#' + id + '</b> &nbsp;·&nbsp; black square ' + mm + ' mm' +
+          '<small>Model Notes AR site alignment · ArUco MIP 36h12 · keep the white border visible</small></div></section>';
+      }
+      $('sheets').innerHTML = out;
+      history.replaceState(null, '', '?size=' + mm + '&from=' + from + '&count=' + n);
+    }
+    ['size', 'from', 'count'].forEach(function (k) { $(k).addEventListener('change', render); });
+    $('print').onclick = function () { window.print(); };
+    render();
+  </script>
+</body>
+</html>
